@@ -1,0 +1,5 @@
+__pycache__/
+.DS_Store
+# 법인 고유정보 (공개 저장소에 올리지 않음)
+assets/firm.json
+references/firm-facts.md

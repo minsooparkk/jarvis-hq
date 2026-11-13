@@ -1,0 +1,6 @@
+interface:
+  display_name: "제안서·보고서 PPT (한국어)"
+  short_description: "회계·세무·컨설팅 법인의 한국어 제안서·서비스 소개서·자문 보고서 작성과 검수 기준"
+  default_prompt: "$proposal-deck-kr 스킬로 자료의 목적에 맞게 제안서 또는 보고서를 작성하고, 최신 수정본의 양식과 공통 편집 기준을 적용해 주세요."
+policy:
+  allow_implicit_invocation: true

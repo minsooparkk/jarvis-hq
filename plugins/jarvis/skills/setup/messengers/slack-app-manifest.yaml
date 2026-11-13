@@ -1,0 +1,35 @@
+# Jarvis 용 Slack 앱 매니페스트. api.slack.com/apps → Create New App → From a manifest → 워크스페이스 고르기 →
+# 이 파일 내용을 통째로 붙여 넣는다(YAML 탭). 이름은 바꿔도 된다(display_information.name, 35자까지).
+# 필드 이름은 Slack 공식 매니페스트 문서(docs.slack.dev/reference/app-manifest)에 맞춤. Slack 검사기로 돌려 보지는 않았다.
+_metadata:
+  major_version: 1
+display_information:
+  name: Jarvis
+  description: 나만 쓰는 개인 비서(1:1 DM)
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: Jarvis
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - im:history
+      - im:write
+      - files:read
+      - files:write
+      - reactions:write
+      - users:read
+settings:
+  event_subscriptions:
+    bot_events:
+      - message.im
+  interactivity:
+    is_enabled: true
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false

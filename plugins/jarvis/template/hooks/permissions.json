@@ -1,0 +1,8 @@
+{
+  "_설명": "Claude Code 권한에 더할 것. 기본(엔진)은 Bash·Read·Edit·Write 등을 열고, 비밀값·되돌릴 수 없는 일을 잠금 거부로 막는다. 바꾼 뒤 jarvis perms build. 잠금을 풀려면 unlock 에 적고 --owner-approval 이 필요하다.",
+  "allow": [],
+  "_allow_예": ["mcp__claude_ai_Gmail", "mcp__claude_ai_Google_Calendar"],
+  "deny": [],
+  "unlock": [],
+  "additionalDirectories": []
+}

@@ -1,0 +1,44 @@
+# 실행기가 승인 뒤 '한 번만' 실행할 수 있는 대상. 여기 없는 대상은 실행하지 않는다.
+# 대상의 내용 전체(실행 명령·창·저장소…)가 봉인에 들어간다. 승인 뒤 이 파일의 그 대상이 바뀌면 실행하지 않는다.
+#
+# 칸(한국어·영어 둘 다 됨)
+#   이름(name)        승인 글에 보이는 이름
+#   실행(run)          명령 줄 목록(bash). 차례로 돌고 하나라도 실패하면 멈춘다
+#   확인(check)        다 돈 뒤 확인 명령(선택). 0 이면 성공
+#   창(window)         always(곧바로) 또는 "05-07"(05~07시에만)
+#   입력(input)        없음 | 선택 | 필수. 요청 때 --input 파일 사본을 봉인하고, 실행 때 $JARVIS_PAYLOAD 로 넘긴다
+#   저장소(repo)·브랜치(branch)·경로(paths)  저장소 배포: 요청 때 커밋의 그 경로 내용을 봉인, 실행 직전 작업 폴더가 같은지 다시 본다
+#   시간제한(timeout_min)  분, 기본 30. 넘으면 '불확실'(다시 하지 않음)
+# 실행 때 넘어가는 환경변수: JARVIS_REQUEST_ID, JARVIS_HOME, JARVIS_PAYLOAD(입력이 있을 때), JARVIS_PYTHON(엔진 파이썬)
+
+대상:
+  hello:
+    이름: 실행기 시험(아무것도 바꾸지 않음)
+    실행:
+      - echo "실행기 시험입니다. 요청 $JARVIS_REQUEST_ID"
+    창: always
+
+  config-apply:
+    이름: 문지기·실행 대상·권한 설정 바꾸기
+    입력: 필수
+    실행:
+      - '"$JARVIS_PYTHON" -m jhq.apply_config'
+    창: always
+
+  # gmail-send:            # 선택 모듈. 준비: 스킬 jarvis:send-mail '처음 한 번'
+  #   이름: Gmail 로 메일 한 통 보내기
+  #   입력: 필수
+  #   실행:
+  #     - '"$JARVIS_PYTHON" -m jhq.extras.gmail send'
+  #   창: always
+
+  # site-deploy:           # 예시: 저장소 배포. 경로와 명령을 자기 것으로 바꾼다
+  #   이름: 내 사이트 배포
+  #   저장소: ~/code/my-site
+  #   브랜치: main
+  #   경로: [src, package.json]
+  #   실행:
+  #     - npm ci
+  #     - npm run deploy
+  #   확인: curl -sf -o /dev/null https://example.com/
+  #   창: always

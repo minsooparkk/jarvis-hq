@@ -1,0 +1,24 @@
+{
+  "skillName": "proposal-deck-kr",
+  "note": "공개용 판의 자산 해시. 원형 PPT 두 벌은 고객·법인 정보, 금액, 날짜, 인물, 그림, 차트 자료, 발표자 노트, 문서 속성을 자리표시로 바꾼 틀이다. 로고·인물 그림은 새로 만든 자리표시다.",
+  "referenceSlideCounts": {
+    "assets/proposal-template.pptx": 25,
+    "assets/report-template.pptx": 9
+  },
+  "assetSha256": {
+    "assets/body.png": "b8806f1058440fdcbc8730c47c6d4c88fe7ea8e0fc6dc4f27d2609b6170945bc",
+    "assets/chart.png": "69ecb832919e2d0f868cb62d176031dc2e11560e3bbd0d11e82c78abd458f657",
+    "assets/divider.png": "9e2585e3163e2d36f7f0df5e90fdcb9320c283840844a9b5a80db2a21928c936",
+    "assets/firm.example.json": "b88c3f83e300e30511cc0b34f4b87264a5f2453d121e368d32086a0b5a5f4cd2",
+    "assets/logo_placeholder.png": "5a0ed699acdfc2361f96e450bc25f257c2a37f8033827fb778e6fe285e5b05f5",
+    "assets/person_placeholder_a.png": "b4388d4b92beca8187f12d16ef8bc8340bcc926cab35c214efc6df9f45634f47",
+    "assets/person_placeholder_b.png": "0c3ccd3548a849835f62b85d9ed5d8803b09fcdfda2935bfc581af974aa487ec",
+    "assets/preview.png": "bf894de0a45440d0a8b9937f038577e0dae80aad7ad8a102c37bd8c36aeed758",
+    "assets/proposal-template.pptx": "561a42cdaf38213179f646aa2a0089b65e02268d774e8e28c879575a66fe3154",
+    "assets/report-template-layouts.png": "0823fa1e39f56ebb3a6c649d582c7204c0ed309c70c888482499f6dec7c94b5d",
+    "assets/report-template-preview.png": "68582f2a6fe9373c747621fc5248eaf31804042cba56424543070975eacd69a8",
+    "assets/report-template.pptx": "1ce696fdd830ffa11bb3458c0059c248b56f51eb6f70b7892d2642808e1aeb0e",
+    "assets/table.png": "c57399cef608a7b4283473e15d2e09e203288ff8526f294cb53a6e54ee2a48d8",
+    "assets/toc.png": "2fc8f243986e81900e8d7f797d160363b1ccea38d352876e1d8818c9eca016d1"
+  }
+}

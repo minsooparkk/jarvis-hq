@@ -1,0 +1,22 @@
+[
+  {"query": "우리 법인 이름으로 법인 고객한테 보낼 기장 서비스 소개서 PPT 좀 만들어줘. 지난번 소개서 양식 그대로", "should_trigger": true},
+  {"query": "첨부한 우리 제안서 7쪽 표가 왼쪽 정렬인데 명사형 항목은 가운데로 바꾸고 목차 쪽수도 다시 맞춰줘", "should_trigger": true},
+  {"query": "가업승계 검토 결과를 대표님 미팅용 보고서 장표로 정리해줘. Executive Summary 넣고 우리 법인 양식으로", "should_trigger": true},
+  {"query": "재무진단 보고서 pptx 표 아래에 '백만원 반올림'이라고 붙어 있는 거 우리 기준대로 단위 표기 정리해줘", "should_trigger": true},
+  {"query": "이 소개서 리뷰를 페이지별로 모아만 두고, 내가 반영하라고 하면 그때 한 번에 고쳐줘", "should_trigger": true},
+  {"query": "외부 세무사 검토 회신이 왔어. 반영할 것과 안 할 것 나눠서 자문 보고서 통합본 PPT로 다시 만들어줘", "should_trigger": true},
+  {"query": "병의원 개원 세무 용역 제안서 장표 초안 만들어줘. 보수는 공급가액 기준, 부가세 별도로", "should_trigger": true},
+  {"query": "회계법인 보고서 양식으로 상속세 시뮬레이션 결과 보고서 PPT 만들어줘", "should_trigger": true},
+  {"query": "용역 제안서 PPT 절차 페이지의 '기장 인수'를 고객용으로 부드럽게 바꾸고 업무 박스 가운데 정렬은 그대로 둬", "should_trigger": true},
+  {"query": "지난번에 만들던 자문 보고서 PPT 이어서 해줘. 3장 계산 근거 표만 손보면 돼", "should_trigger": true},
+  {"query": "우리 법인 보수 제안서를 Word 문서로 작성해줘. 공공기관 제출용이야", "should_trigger": false},
+  {"query": "기장료 월 30만원, 조정료 별도로 견적서 PDF 한 장 만들어줘", "should_trigger": false},
+  {"query": "이 엑셀 재무제표로 3개년 수익성 비율 분석표 만들어줘", "should_trigger": false},
+  {"query": "우리 스타트업 투자 유치용 피치덱 PPT 만들어줘. 토스 IR 자료 같은 느낌으로", "should_trigger": false},
+  {"query": "첨부한 PPT 내용을 요약해서 고객에게 보낼 메일 본문 써줘", "should_trigger": false},
+  {"query": "조달청 지정양식(hwp)으로 기술제안서 빈칸 채워줘", "should_trigger": false},
+  {"query": "아버지한테 3억 증여받으면 증여세 얼마 나와?", "should_trigger": false},
+  {"query": "세무 블로그 글에 넣을 인포그래픽 이미지 프롬프트 5장 만들어줘", "should_trigger": false},
+  {"query": "회의록을 구글 슬라이드 세 장으로 옮겨줘", "should_trigger": false},
+  {"query": "키노트 파일을 pptx로 변환만 해줘. 내용은 손대지 말고", "should_trigger": false}
+]

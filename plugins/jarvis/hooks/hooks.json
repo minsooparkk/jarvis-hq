@@ -1,0 +1,28 @@
+{
+  "description": "Jarvis 문지기(되돌릴 수 없는 명령·비밀값·실행기 입구 막기)와 Jarvis 홈 세션 맥락",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Read|Edit|Write|MultiEdit|NotebookEdit|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" gate.py",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" session_start.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

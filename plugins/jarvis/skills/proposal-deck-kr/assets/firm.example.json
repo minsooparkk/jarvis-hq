@@ -1,0 +1,36 @@
+{
+  "_note": "가상의 예시 법인입니다. assets/firm.json 으로 복사해 자기 법인 정보로 바꿉니다. 수치는 공시 자료 등 기준일이 있는 출처에서 확인한 값만 씁니다(references/firm-facts.template.md).",
+  "firm_name": "예시회계법인",
+  "firm_name_en": "EXAMPLE ACCOUNTING",
+  "logo": "assets/logo_placeholder.png",
+  "website": "www.example.com",
+  "email": "contact@example.com",
+  "palette": {
+    "dark": "062456", "ink": "0F1B2D", "text": "394656", "muted": "5F6B7A", "light": "8A94A3",
+    "blue": "176098", "blue2": "2B88B6", "pale": "E8F1F8", "surface": "F4F7FA", "line": "DFE6EE",
+    "grey": "C7D5E3", "sky": "9CC3E0", "onDark": "C3D3E4", "dline": "1F4172"
+  },
+  "people": [
+    {
+      "name": "담당자 A", "name_en": "PERSON A", "title": "DIRECTOR · CPA", "role": "공인회계사",
+      "photo": "assets/person_placeholder_a.png", "crop": null,
+      "career": ["前 ○○회계법인 세무본부", "○○대학교 졸업"],
+      "work": ["중소기업 결산·세무조정", "투자 유치 기업 재무 실사 대응", "법인 전환 세무 검토"]
+    },
+    {
+      "name": "담당자 B", "name_en": "PERSON B", "title": "DIRECTOR · CPA", "role": "공인회계사",
+      "photo": "assets/person_placeholder_b.png", "crop": null,
+      "career": ["前 ○○회계법인 재무자문본부", "○○대학교 졸업"],
+      "work": ["기업가치평가", "내부회계관리제도 구축 자문", "재무 모델링"]
+    }
+  ],
+  "profile": {
+    "as_of": "20XX년 X월 결산 기준",
+    "source": "가상 예시 수치입니다. 실제 문서에는 공시 자료명·접수번호·기준일을 적습니다.",
+    "stats": [["120.5", "억원", "최근 결산 매출"], ["35", "명", "공인회계사"], ["110", "명", "전체 인력"], ["4", "개소", "사무소"]],
+    "info": [["설립", "20XX년"], ["대표이사", "[이름]"], ["본점", "[본점 주소]"], ["주요 업무", "세무 · 경영자문 · 회계감사"], ["웹사이트", "www.example.com"]],
+    "revenue": {"labels": ["Y-4", "Y-3", "Y-2", "Y-1", "Y"], "values": [82.4, 90.1, 101.7, 112.3, 120.5], "unit": "억원"},
+    "mix": [["세무", 68.2], ["경영자문", 30.1], ["회계감사", 22.2]],
+    "offices": [["서울", ["본점", "[서울 사무소]"]], ["경기", ["[경기 사무소]"]], ["[지역]", ["[지역 사무소]"]]]
+  }
+}

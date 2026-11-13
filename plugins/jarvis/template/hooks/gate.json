@@ -1,0 +1,27 @@
+{
+  "_설명": "문지기 설정. 키 이름 앞에 _ 가 붙은 것은 설명이다. 비워 둔 목록은 기본값만 쓴다.",
+  "scope": "home",
+  "_scope": "home = Jarvis 홈에서 연 세션과 jarvisd 가 띄운 세션에만 건다. all = 이 컴퓨터의 모든 Claude Code 세션에 건다.",
+  "rm_ok": [],
+  "_rm_ok": "rm 을 허락할 폴더를 더한다(기본: 임시 폴더, .harness/work, ~/.Trash). 예: [\"~/Downloads/tmp\"]",
+  "push_ok": [],
+  "_push_ok": "git push 를 허락할 원격 주소 앞부분. 예: [\"github.com/내아이디/\"]. 비어 있으면 push 는 모두 막힌다.",
+  "protected_services": [],
+  "_protected_services": "내리거나 다시 켜지 못하게 할 서비스 이름 앞부분(맥 launchd 라벨·윈도 작업 이름, 이 비서의 서비스는 기본으로 보호).",
+  "protected_procs": [],
+  "protected_dbs": [],
+  "_protected_dbs": "sqlite3 로는 읽기만 허락할 DB 파일 이름. 예: [\"app.db\"]",
+  "extra_deploy": [],
+  "_extra_deploy": "더 막을 배포 명령. 예: [{\"cmd\": \"make\", \"pattern\": \"^deploy\"}]",
+  "mcp_block": [],
+  "mcp_allow": [],
+  "_mcp": "MCP 도구 이름 정규식. 기본으로 보내기·답장·전달·삭제 도구는 막힌다. 꼭 열어야 하면 mcp_allow 에.",
+  "routes": [
+    {
+      "match": ["whisper-cli", "faster-whisper", "whisperx", "mlx_whisper", "import whisper"],
+      "allow": ["jarvis", "grep", "rg", "ls", "which", "brew", "pytest"],
+      "message": "녹음 받아쓰기는 `jarvis stt <파일>` 로만 합니다(스킬 transcribe)."
+    }
+  ],
+  "_routes": "길 고정: match 의 글자가 명령에 있으면, 명령이 allow 의 프로그램으로만 이뤄졌을 때만 통과."
+}

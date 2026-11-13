@@ -1,0 +1,6 @@
+# 이 폴더를 git 으로 관리할 때 올리지 않을 것
+.harness/ledger/
+.harness/state/
+.harness/inbox/
+.harness/work/
+.claude/settings.local.json

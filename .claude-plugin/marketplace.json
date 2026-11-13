@@ -1,0 +1,16 @@
+{
+  "name": "jarvis-hq",
+  "owner": {
+    "name": "minsooparkk"
+  },
+  "metadata": {
+    "description": "Jarvis 개인 비서 배포판"
+  },
+  "plugins": [
+    {
+      "name": "jarvis",
+      "source": "./plugins/jarvis",
+      "description": "텔레그램·Slack·Discord 로 부리는 개인 Claude Code 비서(macOS·Windows). 설치는 /jarvis:setup"
+    }
+  ]
+}
