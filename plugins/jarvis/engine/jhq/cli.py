@@ -6,6 +6,7 @@
                                                        (jarvis telegram … 은 예전 이름: 텔레그램으로 messenger)
   jarvis status        데몬·승인·심장박동              jarvis stt …       받아쓰기(선택 모듈)
   jarvis mail …        Gmail 보내기 요청(선택 모듈)    jarvis brief …     아침·저녁 요약 재료
+  jarvis agent …       세션을 띄울 에이전트(Claude Code · Codex): status · set · sync · mcp · open
   jarvis version
 """
 
@@ -15,7 +16,7 @@ import json
 import sys
 import time
 
-from . import config, executor, messengers, outbox, perms, secrets, worklog
+from . import agents, config, executor, messengers, outbox, perms, secrets, worklog
 
 
 def cmd_notify(argv):
@@ -149,6 +150,127 @@ def cmd_messenger(argv, name=None):
     return 0
 
 
+def agent_report(cfg, paths, plat=None, agent=None):
+    """jarvis agent status 의 내용(사람이 읽을 것과 --json 이 같은 자료)."""
+    plat = plat or config.plat()
+    a = agent or agents.get(cfg)
+    out = {"agent": a.name, "display": a.display, "path": a.path(cfg, plat), "home_file": str(paths.home / a.home_file)}
+    if a.name == "codex":
+        out["version"] = a.version(cfg, plat)
+        from .agents import codex as cx
+        o = cx.opts(cfg)
+        out["network"] = bool(o.get("network"))
+        out["model"] = o.get("model") or "(Codex 기본)"
+    out["checks"] = [{"name": n, "ok": bool(ok), "hint": "" if ok else h} for n, ok, h in a.checks(cfg, paths, plat)]
+    out["guard"] = [{"item": i, "level": lv, "note": nt} for i, lv, nt in a.guard(cfg)]
+    return out
+
+
+def restart_daemon(cfg):
+    """설정을 바꾼 뒤 jarvisd 를 다시 켠다(서비스가 등록돼 있을 때만). (했는지, 알림 글)."""
+    import os
+    if os.environ.get("JARVIS_HQ_NO_SERVICES") or os.environ.get("JARVIS_HQ_NO_LAUNCHCTL"):
+        return False, "서비스를 건드리지 않는 설정이라 다시 켜지 않았습니다"
+    plat = config.plat()
+    lab = config.label(cfg, "jarvisd")
+    try:
+        state = (plat.service_states([lab]).get(lab) or ("missing",))[0]
+        if state == "missing":
+            return False, "jarvisd 가 아직 등록되지 않았습니다(설치를 마치면 새 에이전트로 뜹니다)"
+        ok, msg = plat.service_restart(lab)
+        return ok, ("jarvisd 를 다시 켰습니다" if ok else f"jarvisd 다시 켜기 실패: {msg}")
+    except Exception as e:  # noqa: BLE001
+        return False, f"jarvisd 다시 켜기 실패: {str(e)[:200]}"
+
+
+def cmd_agent(argv):
+    ap = argparse.ArgumentParser(prog="jarvis agent", description="세션을 띄울 에이전트(Claude Code · Codex)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    st = sub.add_parser("status", help="지금 에이전트·점검·문지기 보장(Claude 대비)")
+    st.add_argument("--json", action="store_true")
+    se = sub.add_parser("set", help="에이전트 바꾸기(대표가 자기 터미널에서). jarvisd 를 다시 켠다")
+    se.add_argument("name", choices=agents.NAMES)
+    se.add_argument("--path", help="실행 파일 자리(없으면 찾음)")
+    se.add_argument("--network", choices=["on", "off"], help="Codex 샌드박스의 네트워크(기본 off)")
+    se.add_argument("--model", help="Codex 모델 이름(비우면 Codex 기본)")
+    se.add_argument("--no-restart", action="store_true")
+    sub.add_parser("sync", help="홈을 지금 에이전트에 맞춤(Codex: CLAUDE.md 로 AGENTS.md 다시 만들기·.agents/skills 연결)")
+    sub.add_parser("mcp", help="Codex 에 플러그인의 MCP 서버를 손으로 넣는 명령")
+    sub.add_parser("open", help="홈에서 대화형 Codex 를 데몬과 같은 울타리(문지기·샌드박스)로 연다")
+    a = ap.parse_args(argv)
+    cfg = config.load()
+    paths = config.Paths(cfg)
+    plat = config.plat()
+    if a.cmd == "status":
+        rep = agent_report(cfg, paths, plat)
+        if a.json:
+            print(json.dumps(rep, ensure_ascii=False, indent=1))
+            return 0
+        print(f"에이전트: {rep['display']} ({rep['agent']}) · 실행 파일 {rep['path']}" + (f" · {rep['version']}" if rep.get("version") else ""))
+        if rep["agent"] == "codex":
+            print(f"샌드박스 네트워크: {'켜짐' if rep['network'] else '꺼짐'} · 모델: {rep['model']}")
+        print(f"홈 진입 파일: {rep['home_file']}")
+        for c in rep["checks"]:
+            print(("OK " if c["ok"] else "!! ") + c["name"] + ("" if c["ok"] else " → " + c["hint"]))
+        print("문지기 보장(Claude Code 기준 대비):")
+        for g in rep["guard"]:
+            print(f"- [{g['level']}] {g['item']}: {g['note']}")
+        return 0 if all(c["ok"] for c in rep["checks"]) else 1
+    if a.cmd == "set":
+        ag = agents.get(a.name)
+        if a.name == "codex":
+            if not isinstance(cfg.get("codex"), dict):
+                cfg["codex"] = {}
+            cx = cfg["codex"]
+            if a.network:
+                cx["network"] = a.network == "on"
+            if a.model is not None:
+                cx["model"] = a.model
+            found = a.path or cx.get("path") or ag.find(plat)
+            if not found:
+                print("codex 명령을 찾지 못했습니다. Codex CLI 를 깔고(npm install -g @openai/codex) 다시 하거나 --path 로 자리를 주세요.",
+                      file=sys.stderr)
+                return 2
+            cx["path"] = str(found)
+        elif a.path:
+            cfg["claude"] = a.path
+        before = cfg.get("agent") or "claude"
+        cfg["agent"] = a.name
+        config.save(cfg)
+        p2 = config.Paths(cfg).ensure()
+        made = ag.prepare_home(p2, cfg)
+        worklog.add(f"에이전트 설정: {agents.DISPLAY[before]} → {agents.DISPLAY[a.name]}", "jarvis agent set",
+                    ", ".join(made) or "-", who="에이전트", paths=p2)
+        print(f"에이전트를 {agents.DISPLAY[a.name]} 로 적었습니다." + (f" ({', '.join(made)})" if made else ""))
+        if not a.no_restart:
+            print(restart_daemon(cfg)[1])
+        if a.name == "codex":
+            if ag.plugin_state(cfg, plat) == "missing":
+                print("Codex 에 플러그인 jarvis(스킬·MCP·훅)가 없습니다. 터미널에서: codex plugin marketplace add minsooparkk/jarvis-hq"
+                      " && codex plugin add jarvis@jarvis-hq")
+            print("확인: jarvis agent status (Codex 와 Claude 의 문지기 차이가 함께 나옵니다)")
+        return 0
+    ag = agents.get(cfg)
+    if a.cmd == "sync":
+        made = ag.prepare_home(paths.ensure(), cfg)
+        print("맞췄습니다: " + (", ".join(made) if made else "바뀐 것 없음"))
+        return 0
+    if a.cmd == "mcp":
+        from .agents import codex as cx
+        for name, url in cx.mcp_servers().items():
+            print(f"codex mcp add {name} --url {url}")
+        print("(데몬이 띄우는 Codex 세션에는 위 서버가 저절로 들어갑니다. 위 명령은 그냥 연 Codex 에서도 쓰고 싶을 때만.)")
+        return 0
+    if a.cmd == "open":
+        if ag.name != "codex":
+            print("지금 에이전트는 Claude Code 입니다. 홈 폴더에서 claude 를 열면 같은 문지기가 걸립니다.", file=sys.stderr)
+            return 2
+        import subprocess
+        argv = ag.interactive_argv(cfg, paths, plat)
+        return subprocess.call(argv, cwd=str(paths.home), env=agents.agent_env(cfg, ag.path_dirs(cfg, plat)))
+    return 2
+
+
 def status(paths):
     cfg = paths.cfg
     now = time.time()
@@ -163,7 +285,7 @@ def status(paths):
     except (OSError, ValueError):
         st = {}
     out = {"version": config.VERSION, "home": str(paths.home), "engine": str(config.engine_dir()),
-           "messenger": cfg.get("messenger") or "telegram", "owner_id_set": bool(messengers.owner(cfg)),
+           "agent": cfg.get("agent") or "claude", "messenger": cfg.get("messenger") or "telegram", "owner_id_set": bool(messengers.owner(cfg)),
            "heartbeat_flush_sec": age("flush"), "heartbeat_poll_sec": age("poll"),
            "schedule_checked": st.get("checked"), "last_reply_at": st.get("last_reply_at"),
            "executor_paused": paths.pause.exists()}
@@ -223,6 +345,8 @@ def main(argv=None):
         return cmd_messenger(rest, name=cmd)
     if cmd == "status":
         return cmd_status(rest)
+    if cmd == "agent":
+        return cmd_agent(rest)
     if cmd == "brief":
         from . import brief
         return brief.main(rest)

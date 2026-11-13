@@ -21,7 +21,9 @@ DEFAULTS = {
     "timezone": "Asia/Seoul",
     "assistant_name": "Jarvis",
     "owner_title": "대표",
+    "agent": "claude",  # claude | codex (없으면 claude: 예전 설치 그대로). jhq.agents
     "claude": "claude",
+    "codex": {"path": None, "network": False, "model": "", "reasoning": "", "writable_roots": [], "apps": False},
     "agent_timeout_min": 20,
     "executor_tick_sec": 30,
     "messenger": "telegram",  # telegram | slack | discord (없으면 텔레그램: 예전 설치 그대로)

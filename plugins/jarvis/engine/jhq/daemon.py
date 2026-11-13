@@ -1,7 +1,7 @@
-"""jarvisd: 메신저(텔레그램·Slack·Discord) ↔ Claude Code 세션 데몬. 서비스로 뜬다(맥 launchd · 윈도 작업 스케줄러, <label_prefix>.jarvisd).
+"""jarvisd: 메신저(텔레그램·Slack·Discord) ↔ 에이전트(Claude Code 또는 Codex) 세션 데몬. 서비스로 뜬다(맥 launchd · 윈도 작업 스케줄러, <label_prefix>.jarvisd).
 
 하는 일
-- 대표 DM(과 선택한 그룹 토픽)의 말을 받아 Jarvis 홈에서 `claude -p` 를 돌리고 답을 올린다.
+- 대표 DM(과 선택한 그룹 토픽)의 말을 받아 Jarvis 홈에서 에이전트(`claude -p` 또는 `codex exec`, jhq.agents)를 돌리고 답을 올린다.
   DM 은 하루 한 대화(같은 날은 이어 감), 그룹의 토픽은 토픽마다 대화 하나.
 - 진행 표시: Jarvis 가 도구 사이에 쓴 짧은 글을 그때그때 올리고, 20초 동안 말이 없으면 '…중이에요. 잠시만요.' 한 줄.
 - 답을 만드는 동안 대표가 더 말하면 따로 답하지 않고 '말씀 받았습니다' 한 줄 뒤 지금 만드는 답에 합친다.
@@ -9,14 +9,13 @@
 - 보낼 글 대기열(outbox)을 몇 초마다 올린다. schedule.yaml 의 예약(지시·스크립트·승인묶음)을 정시에 돌린다.
 - 심장박동 파일을 적는다(지킴이가 본다).
 
-Agent(claude)에게는 메신저 토큰과 서명 열쇠를 넘기지 않는다. 대표가 아닌 사람의 말·버튼은 무시한다.
+Agent(claude·codex)에게는 메신저 토큰과 서명 열쇠를 넘기지 않는다. 대표가 아닌 사람의 말·버튼은 무시한다.
 메신저마다 다른 것(보내기·받기·버튼·서식)은 jhq.messengers 가 맡는다.
 """
 
 import json
 import logging
 import os
-import queue
 import shutil
 import subprocess
 import sys
@@ -28,16 +27,15 @@ from pathlib import Path
 
 import yaml
 
-from . import config, cronlib, executor, messengers, outbox, plain, secrets
+from . import agents, config, cronlib, executor, messengers, outbox, plain, secrets
 
 log = logging.getLogger("jarvisd")
 
-STALL = 180          # 이 안에 claude 가 한 줄도 내지 않으면 '시작 못 함'
+STALL = agents.STALL  # 이 안에 에이전트가 한 줄도 내지 않으면 '시작 못 함'
 LIVE_FIRST = 20      # 이 안에 한 마디도 없으면 '…중이에요. 잠시만요.'
 PROGRESS_EVERY = 300  # 오래 걸리면 이 간격으로 '아직 하는 중'
 FAIL_REPEAT = 6 * 3600
-STRIP_ENV = ("JARVIS_SEAL_KEY", "JARVIS_TELEGRAM_TOKEN", "TELEGRAM_BOT_TOKEN", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
-             "DISCORD_BOT_TOKEN", "DISCORD_TOKEN")
+STRIP_ENV = agents.base.STRIP_ENV
 HELP = ("명령(DM): /상태 · /승인(결정 안 한 승인 다시 알림) · /new(오늘 대화 새로) · /stop(만들던 답 멈춤) · /도움\n"
         "(/ 없이 한 낱말로 '상태'·'승인'·'새로'·'멈춰'·'도움' 도 됩니다)\n"
         "그 밖의 말은 Jarvis 가 읽고 답합니다. 사진·파일을 보내면 받아서 봅니다.")
@@ -45,7 +43,7 @@ COMMANDS = {"/stop": "stop", "stop": "stop", "/new": "new", "/reset": "new", "/s
             "/status": "status", "/승인": "approvals", "/approvals": "approvals", "/도움": "help", "/help": "help"}
 BARE = {"상태": "status", "승인": "approvals", "도움": "help", "새로": "new", "멈춰": "stop"}  # 한 낱말만(Slack 은 / 를 가로챔)
 TOOL_PHRASE = {"Bash": "확인하는 중", "Read": "자료를 읽는 중", "Grep": "자료를 찾는 중", "Glob": "자료를 찾는 중",
-               "Edit": "파일을 고치는 중", "Write": "파일을 쓰는 중", "WebFetch": "웹에서 찾는 중", "WebSearch": "웹에서 찾는 중",
+               "Edit": "파일을 고치는 중", "Write": "파일을 쓰는 중", "apply_patch": "파일을 고치는 중", "WebFetch": "웹에서 찾는 중", "WebSearch": "웹에서 찾는 중",
                "Agent": "맡긴 일을 기다리는 중", "Task": "맡긴 일을 기다리는 중"}
 BUTTONS = [("승인", "approve"), ("수정", "revise"), ("거부", "reject")]
 DECIDED = {"승인됨": "✅ 승인했습니다", "거부됨": "❌ 거부했습니다", "수정 요청": "✏️ 수정을 요청했습니다"}
@@ -58,107 +56,30 @@ def style_hint(cfg, where="텔레그램"):
             f"(그 글은 그 자리에서 따로 올라간다). 마지막 답은 결과 정리만. 경로·명령·오류 원문이 꼭 필요하면 맨 끝에 "
             f"'{plain.WORK}' 한 줄을 두고 그 아래에 적는다(접혀서 올라간다). "
             f"답을 만드는 동안 {owner}이(가) 더 말하면 '[덧붙임]' 으로 들어온다. 한 답에 반영한다. "
-            f"'[파일 첨부: 경로]' 줄이 있으면 그 파일을 Read 로 열어 본 뒤 답한다. "
+            f"'[파일 첨부: 경로]' 줄이 있으면 그 파일을 열어 본 뒤 답한다. "
             f"보여 줄 그림·파일은 `jarvis notify dm \"설명\" --file 경로` 로 올린다. "
             f"되돌릴 수 없는 일(발송·배포·결제·영구 삭제·공개 게시)은 `jarvis exec request`(승인 버튼)로만 한다.")
 
 
-class StallError(RuntimeError):
-    pass
+StallError = agents.StallError
 
 
 def agent_env(cfg):
-    plat = config.plat()
-    env = {k: v for k, v in os.environ.items() if k not in STRIP_ENV}
-    env["JARVIS_HQ_AGENT"] = cfg.get("assistant_name") or "Jarvis"
-    extra = plat.agent_path(config.engine_dir())
-    env["PATH"] = os.pathsep.join(extra + [env.get("PATH") or plat.default_path()])
-    env.setdefault("PYTHONUTF8", "1")
-    return env
+    return agents.agent_env(cfg)
+
+
+def run_agent(cfg, paths, prompt, session, resume=False, context="", timeout=None, on_text=None, on_tool=None,
+              on_tick=None, register=None):
+    """설정한 에이전트(config agent: claude · codex)로 답을 만든다. 마지막 답(Reply, .session 에 실제 대화 id)."""
+    return agents.get(cfg).run(cfg, paths, prompt, session, resume, context, timeout, on_text, on_tool, on_tick, register,
+                               stall=STALL)
 
 
 def run_claude(cfg, paths, prompt, session, resume=False, context="", timeout=None, on_text=None, on_tool=None,
                on_tick=None, register=None):
-    """claude -p 를 stream-json 으로 돌려 최종 답을 돌려준다. 도구 사이의 글은 on_text, 도구 이름은 on_tool 로 넘긴다."""
-    timeout = timeout or int(cfg.get("agent_timeout_min") or 20) * 60
-    plat = config.plat()
-    stdin_prompt = plat.prompt_on_stdin  # 윈도: 명령줄 길이 한도·따옴표 처리 때문에 질문은 표준입력으로
-    cmd = plat.claude_argv(cfg.get("claude") or "claude") + ["-p"] + ([] if stdin_prompt else [prompt]) + [
-        "--output-format", "stream-json", "--verbose", "--resume" if resume else "--session-id", session]
-    if context:
-        cmd += ["--append-system-prompt", context]
-    proc = subprocess.Popen(cmd, cwd=str(paths.home), env=agent_env(cfg), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            stdin=subprocess.PIPE if stdin_prompt else subprocess.DEVNULL, text=True, encoding="utf-8",
-                            errors="replace", bufsize=1, **plat.popen_kw())
-    if stdin_prompt:
-        def feed():
-            try:
-                proc.stdin.write(prompt)
-                proc.stdin.close()
-            except OSError:
-                pass
-        threading.Thread(target=feed, daemon=True).start()
-    if register:
-        register(proc)
-    lines, err = queue.Queue(), []
-
-    def read_out():
-        for ln in proc.stdout:
-            lines.put(ln)
-        lines.put(None)
-
-    def read_err():
-        for ln in proc.stderr:
-            err.append(ln)
-            del err[:-50]
-
-    threading.Thread(target=read_out, daemon=True).start()
-    threading.Thread(target=read_err, daemon=True).start()
-    t0, seen, final, is_error, pending = time.monotonic(), 0, None, False, []
-    while True:
-        try:
-            ln = lines.get(timeout=1)
-        except queue.Empty:
-            ln = ""
-        el = time.monotonic() - t0
-        if ln is None:
-            break
-        if not ln:
-            if not seen and el > STALL:
-                plat.kill(proc)
-                raise StallError(f"Claude 가 {STALL // 60}분 동안 시작하지 못했습니다: {''.join(err)[-300:].strip()}")
-            if el > timeout:
-                plat.kill(proc)
-                raise RuntimeError(f"{timeout // 60}분 안에 끝나지 않음")
-            if on_tick:
-                on_tick(el)
-            continue
-        seen += 1
-        try:
-            ev = json.loads(ln)
-        except ValueError:
-            continue
-        if ev.get("type") == "assistant":
-            for b in (ev.get("message") or {}).get("content") or []:
-                if not isinstance(b, dict):
-                    continue
-                if b.get("type") == "text" and str(b.get("text") or "").strip():
-                    pending.append(b["text"].strip())
-                elif b.get("type") == "tool_use":
-                    if on_text:
-                        for t in pending:
-                            on_text(t)
-                    pending = []
-                    if on_tool:
-                        on_tool(str(b.get("name") or ""))
-        elif ev.get("type") == "result":
-            final, is_error = ev.get("result"), bool(ev.get("is_error"))
-    proc.wait()
-    if getattr(proc, "jarvis_stopped", False) or proc.returncode in (-9, -15):
-        raise RuntimeError("멈췄습니다(/stop)")
-    if proc.returncode != 0 or final is None or is_error:
-        raise RuntimeError(f"claude 종료 코드 {proc.returncode}: {(str(final or '') + ''.join(err))[-300:].strip()}")
-    return str(final).strip()
+    """claude -p 를 stream-json 으로 돌려 최종 답을 돌려준다(예전 이름. jhq.agents.claude)."""
+    return agents.get("claude").run(cfg, paths, prompt, session, resume, context, timeout, on_text, on_tool, on_tick,
+                                    register, stall=STALL)
 
 
 class Live:
@@ -189,8 +110,12 @@ class Live:
 
 
 class Daemon:
-    def __init__(self, cfg, paths, msgr, key, runner=run_claude):
-        self.cfg, self.paths, self.msgr, self.key, self.runner = cfg, paths.ensure(), msgr, key, runner
+    def __init__(self, cfg, paths, msgr, key, runner=None):
+        self.cfg, self.paths, self.msgr, self.key, self.runner = cfg, paths.ensure(), msgr, key, runner or run_agent
+        try:
+            self.agent = agents.kind(cfg)
+        except agents.UnknownAgent:
+            self.agent = "claude"
         self.state_lock, self.talk_lock, self.approval_lock = threading.Lock(), threading.Lock(), threading.Lock()
         self.session_locks, self.talks, self.running, self.job_fail = {}, {}, {}, {}
         self.started = time.time()
@@ -216,15 +141,29 @@ class Daemon:
         except OSError:
             pass
 
+    def skey(self, key):
+        """상태 파일의 대화 열쇠. 에이전트마다 대화 id 가 달라 Claude 가 아니면 앞에 이름을 붙인다(바꿔도 옛 대화를 잇지 않음)."""
+        return key if self.agent == "claude" else f"{self.agent}/{key}"
+
     def session_for(self, key):
         with self.state_lock:
             st = self.load_state()
-            sess = st["sessions"].get(key)
+            sess = st["sessions"].get(self.skey(key))
             if sess:
                 return sess, True
-            sess = st["sessions"][key] = str(uuid.uuid4())
+            sess = st["sessions"][self.skey(key)] = str(uuid.uuid4())
             self.save_state(st)
             return sess, False
+
+    def bind_session(self, key, old, new):
+        """에이전트가 스스로 정한 대화 id(Codex)를 그 대화의 id 로 적는다."""
+        if not new or new == old:
+            return
+        with self.state_lock:
+            st = self.load_state()
+            if st["sessions"].get(self.skey(key)) in (old, None):
+                st["sessions"][self.skey(key)] = new
+                self.save_state(st)
 
     def owner(self):
         return self.cfg.get("owner_title") or "대표"
@@ -270,14 +209,16 @@ class Daemon:
         sess, resume = resume_key_session
         live = Live(lambda t: self.say(dest, t, reply_to))
         try:
-            return self.runner(self.cfg, self.paths, prompt, sess, resume, context, on_text=live.text, on_tool=live.tool,
-                               on_tick=live.tick, register=lambda p: self.running.__setitem__(key, p))
+            out = self.runner(self.cfg, self.paths, prompt, sess, resume, context, on_text=live.text, on_tool=live.tool,
+                              on_tick=live.tick, register=lambda p: self.running.__setitem__(key, p))
+            self.bind_session(key, sess, getattr(out, "session", None))
+            return out
         except Exception as e:  # noqa: BLE001
             if not resume:  # 새로 시작한 대화가 실패하면 다음 말은 새 대화로(없는 세션을 이어 가려다 또 실패하지 않게)
                 with self.state_lock:
                     st = self.load_state()
-                    if st["sessions"].get(key) == sess:
-                        st["sessions"].pop(key, None)
+                    if st["sessions"].get(self.skey(key)) == sess:
+                        st["sessions"].pop(self.skey(key), None)
                         self.save_state(st)
             if isinstance(e, StallError):
                 return f"답을 만들지 못했습니다. {e}"
@@ -296,11 +237,12 @@ class Daemon:
                 self.msgr.typing(dest)
                 sess = self.session_for(key)
                 ans = self.answer(key, prompt, sess, context, dest, reply_to)
+                sid = getattr(ans, "session", None) or sess[0]  # Codex 는 첫 답에서 대화 id 가 정해진다
                 while True:
                     extra = self.talk_more(key)
                     if not extra:
                         break
-                    ans = self.answer(key, self.merge_prompt(extra, ans), (sess[0], True), context, dest, reply_to)
+                    ans = self.answer(key, self.merge_prompt(extra, ans), (sid, True), context, dest, reply_to)
                 if ans and not plain.quiet(ans):
                     self.say(dest, ans, reply_to)
                 with self.state_lock:
@@ -370,7 +312,7 @@ class Daemon:
         elif cmd == "new":
             with self.state_lock:
                 st = self.load_state()
-                st["sessions"].pop(f"dm-{config.now(self.cfg):%Y-%m-%d}", None)
+                st["sessions"].pop(self.skey(f"dm-{config.now(self.cfg):%Y-%m-%d}"), None)
                 self.save_state(st)
             self.say("dm", "오늘 대화를 새로 시작합니다. 앞 대화는 이어 가지 않습니다.")
         elif cmd == "start":
@@ -703,7 +645,7 @@ def main():
             raise messengers.NotReady(f"대표 {messengers.spec(cfg)['owner_word']} 가 없습니다")
         msgr = messengers.connect(cfg)
     except messengers.NotReady as e:
-        log.error("%s. /jarvis:setup 을 마치세요.", e)
+        log.error("%s. 설치(스킬 jarvis:setup)를 마치세요.", e)
         time.sleep(60)
         return 2
     key = secrets.get(secrets.SEAL, cfg)
@@ -713,7 +655,7 @@ def main():
     d.beat("started")  # 지킴이가 '막 뜬 것' 을 알아보게(맥·윈도 같은 방법)
     threading.Thread(target=loop, args=(d.flush_once, 5), daemon=True).start()
     threading.Thread(target=loop, args=(d.scheduler_tick, 20), daemon=True).start()
-    log.info("시작. %s 대표 %s", msgr.display, msgr.owner)
+    log.info("시작. %s 대표 %s · 에이전트 %s", msgr.display, msgr.owner, agents.DISPLAY.get(d.agent, d.agent))
     try:
         d.poll_forever()
     except Exception:  # noqa: BLE001

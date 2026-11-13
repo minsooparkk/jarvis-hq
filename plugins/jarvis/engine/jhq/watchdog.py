@@ -73,11 +73,19 @@ def confirm(problems, suspect, now):
     return out
 
 
+def doctor_hint(cfg):
+    from . import agents
+    try:
+        return agents.get(cfg).doctor_hint()
+    except agents.UnknownAgent:
+        return "이 컴퓨터에서 설치 점검(스킬 jarvis:doctor)을 돌려 주세요"
+
+
 def note(cfg, lab, why, ok, msg=""):
     name = {config.label(cfg, "jarvisd"): "Jarvis", config.label(cfg, "executor"): "실행기"}.get(lab, lab)
     if ok is None:
         return (f"🛠 {name} 이(가) 꺼져 있고 서비스 등록이 빠져 있어 다시 켤 수 없습니다.\n"
-                f"할 일: 이 컴퓨터에서 Claude Code 를 열고 /jarvis:doctor 를 돌려 주세요.\n\n⟦작업용⟧ {lab}: {why}")
+                f"할 일: {doctor_hint(cfg)}.\n\n⟦작업용⟧ {lab}: {why}")
     if ok:
         return f"🛠 {name} 이(가) 멈춰 있어 지킴이가 다시 켰습니다. 멈춘 사이 보내신 말이 있으면 한 번 더 보내 주세요.\n\n⟦작업용⟧ {lab}: {why}"
     return f"🛠 {name} 이(가) 멈춰 있는데 다시 켜지 못했습니다. 5분마다 다시 해 봅니다.\n\n⟦작업용⟧ {lab}: {why} · {msg}"
