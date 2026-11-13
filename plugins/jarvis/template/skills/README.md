@@ -1,6 +1,6 @@
 # skills: 이 비서만의 절차
 
-한 절차 = 폴더 하나(`skills/<이름>/SKILL.md`). Claude Code 는 `.claude/skills`(이 폴더로 가는 바로가기)로 읽는다.
+한 절차 = 폴더 하나(`skills/<이름>/SKILL.md`). Claude Code 는 `.claude/skills`, Codex 는 `.agents/skills`(둘 다 이 폴더로 가는 바로가기)로 읽는다.
 플러그인에 든 범용 스킬(`jarvis:…`)과 따로, 이 사람에게 맞춘 절차를 여기에 둔다.
 
 ## 새 스킬 만들기

@@ -1,22 +1,26 @@
 ---
 name: setup
-description: Jarvis 를 이 컴퓨터(맥 또는 윈도)에 설치하거나 다시 맞출 때. "/jarvis:setup", "Jarvis 설치", "비서 설치해줘", "텔레그램 봇 연결", "슬랙으로 쓰고 싶어", "디스코드 봇 연결", "엔진 업데이트했어(플러그인 업데이트 뒤)" 같은 말. 홈 폴더(기본 ~/jarvis)에 규칙·스킬·기록 구조를 깔고, 엔진을 ~/.jarvis-hq 에 설치하고, 메신저 봇(텔레그램 기본 · Slack · Discord)과 서비스(맥 launchd · 윈도 작업 스케줄러)를 띄우고, 봇에 '안녕' 을 보내 답이 오는지까지 확인한다. 다시 돌려도 안전하다(있는 파일은 덮어쓰지 않음).
+description: Jarvis 를 이 컴퓨터(맥 또는 윈도)에 설치하거나 다시 맞출 때(Claude Code 와 Codex 둘 다). "/jarvis:setup", "$jarvis:setup", "Jarvis 설치", "Codex 로 설치해 줘", "비서 설치해줘", "텔레그램 봇 연결", "슬랙으로 쓰고 싶어", "디스코드 봇 연결", "엔진 업데이트했어(플러그인 업데이트 뒤)" 같은 말. 홈 폴더(기본 ~/jarvis)에 규칙·스킬·기록 구조를 깔고, 엔진을 ~/.jarvis-hq 에 설치하고, 메신저 봇(텔레그램 기본 · Slack · Discord)과 서비스(맥 launchd · 윈도 작업 스케줄러)를 띄우고, 봇에 '안녕' 을 보내 답이 오는지까지 확인한다. 다시 돌려도 안전하다(있는 파일은 덮어쓰지 않음).
 ---
 
 # Jarvis 설치
 
-설치 스크립트는 `${CLAUDE_PLUGIN_ROOT}/scripts/install.py` 다(아래 `$P`). 변수가 비어 있으면 이 SKILL.md 가 있는 폴더 기준 `../../scripts/install.py`.
+설치 스크립트는 `${CLAUDE_PLUGIN_ROOT}/scripts/install.py` 다(아래 `$P`). 변수가 비어 있으면(Codex 는 이 변수가 없다) 이 SKILL.md 가 있는 폴더 기준 `../../scripts/install.py`.
 외부 패키지 없이 기본 파이썬으로 돈다. 아래 `PY` 는 맥이면 `python3`, 윈도면 `py`(없으면 `python`)다.
 macOS·Windows 가 아니면 "아직 macOS·Windows 만 지원" 이라고 알리고 멈춘다.
 
 ## 0. 먼저 볼 것
+- 지금 이 스킬을 돌리는 것이 누구인지: Claude Code 면 그대로, **Codex 면 아래 모든 `$P` 설치 명령에 `--agent codex` 를 붙인다**
+  (데몬이 Codex 로 세션을 띄운다. 이미 설치돼 있으면 `--agent` 없이 돌려도 설정 그대로).
+  Codex 의 샌드박스는 홈 밖(~/.jarvis-hq, 서비스 등록, 금고)에 쓰는 명령에 승인을 물을 수 있다. 물으면 사용자에게 승인을 받거나,
+  사용자가 자기 터미널에서 같은 명령을 돌리게 한다.
 - 운영체제: `uname -s`(맥 Darwin, 윈도 Git Bash 는 MINGW…).
 - 윈도면 이것이 다 있어야 한다. 없으면 무엇을 깔지 한 줄씩 알리고 멈춘다.
   - Git for Windows(Git Bash): Claude Code 의 셸이자 Jarvis 가 실행 대상·예약 스크립트를 돌리는 셸. https://git-scm.com
   - Python 3.9 이상(python.org 설치본, 'py launcher' 켬): `py --version`
-  - Claude Code 네이티브 설치(claude.exe)
+  - Claude Code 네이티브 설치(claude.exe). Codex 로 쓸 때는 Codex CLI(`npm install -g @openai/codex`). 윈도 Codex 는 아직 실제 기기에서 확인하지 않았다
 - `PY "$P" --doctor --json` 으로 지금 상태를 본다. 이미 다 OK 면 "이미 설치돼 있습니다" 와 점검 결과 한 줄로 끝낸다(엔진 판이 다르면 1번부터 다시: 업데이트).
-- `claude --version` 이 되는지 본다(데몬이 이 명령으로 세션을 띄운다).
+- `claude --version`(Codex 면 `codex --version`)이 되는지 본다(데몬이 이 명령으로 세션을 띄운다).
 
 ## 1. 물어볼 것 (한 번에 묻고, 답이 없으면 기본값)
 - 홈 폴더 자리: 기본 `~/jarvis`
@@ -41,9 +45,10 @@ macOS·Windows 가 아니면 "아직 macOS·Windows 만 지원" 이라고 알리
 
 ## 3. 메신저 봇 (사람 손이 필요한 곳)
 고른 메신저의 안내를 이 SKILL.md 옆 `messengers/` 폴더에서 읽고 그 순서대로 한 단계씩 같이 한다(한 번에 다 쏟지 말고, 화면에서 무엇을 누를지 한두 줄씩):
-- 텔레그램: `${CLAUDE_SKILL_DIR}/messengers/telegram.md`
-- Slack: `${CLAUDE_SKILL_DIR}/messengers/slack.md` (앱 매니페스트 `messengers/slack-app-manifest.yaml` 을 붙여 넣기만 하게)
-- Discord: `${CLAUDE_SKILL_DIR}/messengers/discord.md`
+- 텔레그램: `messengers/telegram.md`
+- Slack: `messengers/slack.md` (앱 매니페스트 `messengers/slack-app-manifest.yaml` 을 붙여 넣기만 하게)
+- Discord: `messengers/discord.md`
+(자리는 이 SKILL.md 가 있는 폴더 기준. Claude Code 에서는 `${CLAUDE_SKILL_DIR}` 이 그 폴더다.)
 
 공통 원칙
 - 토큰은 사용자가 자기 터미널(이 대화 말고)에서 `jarvis secret set …` 으로만 넣는다. 입력은 화면에 보이지 않는다.
@@ -63,13 +68,16 @@ macOS·Windows 가 아니면 "아직 macOS·Windows 만 지원" 이라고 알리
 
 ## 5. 동작 확인
 - "메신저에서 봇에게 '안녕' 이라고 보내 주세요" → `jarvis status --wait-reply 180 --json`.
-- `replied: true` 면 끝. 아니면 `~/jarvis/.harness/state/logs/jarvisd.log` 끝 30줄을 읽고 원인을 한 줄로(토큰 오류, claude 를 못 찾음, 맥 허용 창 등) 알리고 고칠 것을 고친 뒤 다시 확인한다.
+- `replied: true` 면 끝. 아니면 `~/jarvis/.harness/state/logs/jarvisd.log` 끝 30줄을 읽고 원인을 한 줄로(토큰 오류, claude·codex 를 못 찾음, Codex 로그인 안 됨, 맥 허용 창 등) 알리고 고칠 것을 고친 뒤 다시 확인한다.
+- Codex 로 설치했으면 `jarvis agent status` 를 돌려 점검이 다 OK 인지 보고, 문지기 표에서 Claude 와 다른 점(약함·꺼 둠)을 사용자에게 두세 줄로 알린다.
 
 ## 6. 마치며 알릴 것 (짧게)
 - 홈 폴더 자리, 메신저 DM 에서 쓰는 명령(/상태 · /승인 · /new · /stop. Slack 은 `/` 로 시작하는 말을 Slack 이 가로채므로 한 낱말로 '상태'·'승인'·'도움'·'새로'·'멈춰'),
   승인 버튼이 오는 방식(되돌릴 수 없는 일만, 버튼을 눌러야 승인. 글자로 '승인' 이라고 쓰면 승인이 아니라 대기 목록을 다시 보여 줌).
 - 다음에 해 볼 것: "내일 할 일 정리해 줘", 메일·캘린더를 쓰려면 claude.ai 의 Gmail·Google Calendar 연결을 켜고
   `~/jarvis/hooks/permissions.json` 의 allow 에 그 도구를 더한 뒤 `jarvis perms build`(Jarvis 가 대신 해 줄 수 있음, 승인 필요).
+  Codex 로 돌 때는 ChatGPT 앱(연결)을 데몬 세션에서 꺼 두어 메일·캘린더 스킬을 아직 못 쓴다고 알린다.
+- 에이전트 바꾸기: 사용자 터미널에서 `jarvis agent set codex`(또는 `claude`). Jarvis 가 대신 하지 않는다(문지기가 막음).
 - 윈도면: '휴지통' 은 윈도 휴지통이 아니라 사용자 폴더의 `.Trash` 폴더다(Jarvis 가 지우는 대신 옮기는 곳).
 - 한 일 기록: `jarvis log add "Jarvis 설치" --결과 "…"`.
 

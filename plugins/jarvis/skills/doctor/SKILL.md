@@ -5,7 +5,7 @@ description: Jarvis 가 이상할 때 점검. "/jarvis:doctor", "Jarvis 답이 �
 
 # Jarvis 점검
 
-`P="${CLAUDE_PLUGIN_ROOT}/scripts/install.py"` (비어 있으면 이 SKILL.md 폴더 기준 `../../scripts/install.py`).
+`P="${CLAUDE_PLUGIN_ROOT}/scripts/install.py"` (비어 있으면, Codex 에서는 늘, 이 SKILL.md 폴더 기준 `../../scripts/install.py`).
 `PY` 는 맥 `python3`, 윈도 `py`(없으면 `python`).
 
 ## 1. 점검표
@@ -15,6 +15,7 @@ description: Jarvis 가 이상할 때 점검. "/jarvis:doctor", "Jarvis 답이 �
 | 안 맞는 것 | 할 일 |
 |---|---|
 | 엔진 설정·홈 파일·엔진 코드·venv·jarvis 명령 없음 | 스킬 jarvis:setup 을 그대로(멱등, 있는 파일은 안 덮음) |
+| 에이전트 점검(claude·codex 명령, Codex 의 AGENTS.md·.agents/skills·플러그인) | `jarvis agent status` 로 자세히. AGENTS.md·링크는 `jarvis agent sync`, 플러그인은 `codex plugin add jarvis@jarvis-hq`(마켓플레이스가 없으면 먼저 `codex plugin marketplace add minsooparkk/jarvis-hq`) |
 | 엔진 판이 플러그인 판과 다름 | 플러그인을 업데이트한 것. setup 을 다시 돌리면 엔진이 새 판으로 바뀌고 데몬이 다시 뜬다 |
 | 메신저 토큰 없음 | 사용자가 자기 터미널에서 `~/.jarvis-hq/bin/jarvis secret set telegram`(Slack 은 `slack-bot` 과 `slack-app`, Discord 는 `discord`. 대화에 붙여 넣지 않게) |
 | 메신저 설정 확인 | `jarvis messenger status` (모자란 토큰·대표 id 를 알려 줌) |

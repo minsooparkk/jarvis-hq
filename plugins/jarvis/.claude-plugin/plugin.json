@@ -1,6 +1,6 @@
 {
   "name": "jarvis",
-  "description": "메신저(텔레그램·Slack·Discord)로 부리는 개인 Claude Code 비서 Jarvis(macOS·Windows). 홈 폴더 규칙, 승인 뒤 한 번만 실행하는 실행기, 문지기 훅, 예약 실행, 범용 스킬.",
+  "description": "메신저(텔레그램·Slack·Discord)로 부리는 개인 비서 Jarvis(Claude Code·Codex, macOS·Windows). 홈 폴더 규칙, 승인 뒤 한 번만 실행하는 실행기, 문지기 훅, 예약 실행, 범용 스킬.",
   "author": {
     "name": "jarvis-hq"
   },

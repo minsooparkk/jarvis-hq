@@ -7,6 +7,6 @@
 |---|---|
 | gate.json | 문지기(Bash·파일·MCP 도구를 쓰기 직전에 보는 훅) 설정. 지워도 되는 폴더, push 해도 되는 원격, 보호할 서비스·DB, '길 고정' 규칙 |
 | targets.yaml | 실행기가 승인 뒤 실행할 수 있는 대상. 여기 없는 것은 실행하지 않는다 |
-| permissions.json | Claude Code 권한(허용·거부)에 더할 것. 바꾸면 `jarvis perms build` 가 .claude/settings.json 을 다시 만든다 |
+| permissions.json | Claude Code 권한(허용·거부)에 더할 것. 바꾸면 `jarvis perms build` 가 .claude/settings.json 을 다시 만든다. Codex 로 돌 때는 additionalDirectories 만 쓰인다(샌드박스에서 쓰기를 허락할 폴더) |
 
-문지기 코드는 플러그인(hooks/gate.py)과 엔진 사본에 있다. 이 폴더에는 설정만 둔다.
+문지기 코드는 플러그인(hooks/gate.py)과 엔진 사본에 있다. 이 폴더에는 설정만 둔다. Claude Code 와 Codex 가 같은 문지기와 같은 설정을 쓴다.

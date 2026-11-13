@@ -5,7 +5,7 @@ description: Jarvis 를 이 컴퓨터에서 내릴 때. "/jarvis:uninstall", "Ja
 
 # Jarvis 제거
 
-`P="${CLAUDE_PLUGIN_ROOT}/scripts/install.py"` (비어 있으면 이 SKILL.md 폴더 기준 `../../scripts/install.py`).
+`P="${CLAUDE_PLUGIN_ROOT}/scripts/install.py"` (비어 있으면, Codex 에서는 늘, 이 SKILL.md 폴더 기준 `../../scripts/install.py`).
 `PY` 는 맥 `python3`, 윈도 `py`(없으면 `python`).
 
 ## 순서
@@ -18,7 +18,7 @@ description: Jarvis 를 이 컴퓨터에서 내릴 때. "/jarvis:uninstall", "Ja
    - 금고(맥 키체인·윈도 자격 증명 관리자)의 메신저 토큰·서명 열쇠 등도 지울지 → 예면 `--forget-secrets` (되돌릴 수 없다. 봇 토큰은 BotFather·Slack 앱 설정·Discord 개발자 포털에서 다시 받을 수 있다)
 3. 실행: `PY "$P" --uninstall [--remove-home] [--forget-secrets] --json`
 4. 결과의 `trashed` 를 짧게 알린다. 휴지통은 사용자가 비운다(Jarvis 는 비우지 않는다).
-5. 플러그인 자체를 빼려면 사용자가 `/plugin` 화면에서 jarvis 를 끄거나 제거한다고 안내한다.
+5. 플러그인 자체를 빼려면 사용자가 `/plugin` 화면에서 jarvis 를 끄거나 제거한다고 안내한다(Codex 는 터미널에서 `codex plugin remove jarvis@jarvis-hq`).
 
 ## 하지 않을 것
 - rm 으로 지우지 않는다(스크립트가 휴지통으로 옮긴다).
