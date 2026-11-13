@@ -3,6 +3,7 @@
 
 - 지금 시각(설정한 시간대), 승인 기다리는 요청 수, 오늘 한 일 줄 수, 실행기 멈춤 여부
 - 규칙이 어디 있는지(CLAUDE.md → RULES.md 색인 → rules/). CLAUDE.md 가 없어졌으면 핵심 규칙 몇 줄을 대신 넣는다.
+Claude Code 와 Codex 가 같은 파일을 쓴다.
 그 밖의 폴더에서 연 세션에는 아무것도 붙이지 않는다(다른 일에 끼어들지 않음). 표준 라이브러리만 쓴다(맥·윈도).
 """
 
@@ -14,7 +15,7 @@ from datetime import datetime
 
 CORE = ("핵심 규칙(CLAUDE.md 가 없어 대신 넣음): 되돌릴 수 있는 일은 묻지 않고 하고 가정은 한 줄로 적는다. "
         "되돌릴 수 없는 일(발송·배포·결제·영구 삭제·공개 게시)은 `jarvis exec request` 승인으로만. "
-        "비밀값 원문은 읽지도 적지도 보내지도 않는다. 지우는 대신 휴지통(~/.Trash). /jarvis:doctor 로 홈을 되살린다.")
+        "비밀값 원문은 읽지도 적지도 보내지도 않는다. 지우는 대신 휴지통(~/.Trash). 스킬 jarvis:doctor 로 홈을 되살린다.")
 
 
 def pending_counts(db):
@@ -97,7 +98,7 @@ def main():
     if os.path.exists(os.path.join(home, ".harness", "state", "executor.pause")):
         lines.append("실행기가 멈춤 상태다(대표가 풀 때까지 승인된 일도 실행되지 않음).")
     if os.path.exists(os.path.join(home, "CLAUDE.md")):
-        lines.append("규칙은 CLAUDE.md 가 불러온 것 + RULES.md 색인을 보고 상황에 맞는 rules/ 파일을 읽는다.")
+        lines.append("규칙은 CLAUDE.md(Codex 는 그것을 풀어 만든 AGENTS.md)가 불러온 것 + RULES.md 색인을 보고 상황에 맞는 rules/ 파일을 읽는다.")
     else:
         lines.append(CORE)
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": " ".join(lines)}},

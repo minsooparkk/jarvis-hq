@@ -13,6 +13,8 @@
   launchd 서비스 내리기·kill -9 금지, 배포·공개 명령은 실행기로, docker prune 금지, 키체인·비밀 파일 읽기 금지,
   밖으로 보내는 MCP 도구(메일·메시지 보내기, 영구 삭제) 금지, '길 고정'(routes) 규칙, 하위 Agent 의 바깥 입구 금지.
 설정: <홈>/hooks/gate.json (없으면 기본값). 엔진 설정: ~/.jarvis-hq/config.json (JARVIS_HQ_DIR 로 바꿀 수 있음).
+Codex(OpenAI Codex CLI)에서도 같은 파일이 돈다(입력·출력 모양이 같음). Codex 만의 도구: apply_patch(패치 글의 파일 자리를 봄),
+write_stdin(이미 띄운 프로그램에 넣는 글을 셸 명령처럼 봄). Bash 명령이 목록(["bash", "-lc", "…"])으로 와도 읽는다.
 윈도: 이 훅은 엔진(jhq.platform)을 부를 수 없는 혼자 도는 스크립트라 OS 를 여기서 한 번(WIN) 본다. 경로는 / 와 소문자로 맞춰
 비교하고, Git Bash 꼴(/c/Users/…)도 읽는다. schtasks·taskkill·cmdkey, PowerShell 도구의 명령도 본다.
 """
@@ -204,6 +206,8 @@ def always_bash(argv, red, cwd, c, text):
             return deny("비밀값 넣기·지우기는 대표가 자기 터미널에서 직접 합니다(값을 채팅에 붙여 넣지 않음).")
         if sub[:2] in (["exec", "resume"], ["exec", "daemon"]) or sub[:1] == ["daemon"] or sub[:2] == ["mail", "send"]:
             return deny("실행기 다시 켜기·데몬·보내기 몸통은 대표와 실행기만 씁니다.")
+        if sub[:2] == ["agent", "set"]:
+            return deny("에이전트(Claude Code·Codex) 바꾸기는 문지기·권한 모양이 바뀌는 일이라 대표가 자기 터미널에서 합니다.")
     joined = " ".join(argv)
     if re.search(r"jhq\.(daemon|watchdog)|jhq\.extras\.gmail\s+send|jhq\.apply_config|jhq/(daemon|executor|apply_config)\.py", joined) \
             or ("jhq.executor" in joined and "daemon" in argv) or ("jhq.cli" in joined and ("daemon" in argv or "resume" in argv)):
@@ -449,6 +453,41 @@ def judge_file(tool, inp, cwd, c):
     return None
 
 
+PATCH_FILE = re.compile(r"^\*\*\* (Add|Update|Delete) File: (.+?)\s*$|^\*\*\* Move to: (.+?)\s*$", re.M)
+
+
+def judge_patch(patch, cwd, c):
+    """Codex 의 apply_patch(패치 글 하나로 파일을 만들고 고치고 지움). 패치 머리의 파일 자리를 하나씩 본다.
+    - 울타리(<홈>/hooks/·장부·엔진) 안의 파일은 만들거나 고치거나 지우지 않는다(Claude 의 Edit·Write 와 같음).
+    - 'Delete File' 은 영구 삭제라 Jarvis 세션 안에서는 rm 과 같은 규칙(임시·작업 폴더·휴지통 아래만)."""
+    if not isinstance(patch, str):
+        return None
+    prot = protected_dirs(c)
+    for m in PATCH_FILE.finditer(patch):
+        kind, p = m.group(1) or "Move", (m.group(2) or m.group(3) or "").strip()
+        if not p:
+            continue
+        real = absp(p, cwd)
+        if any(under(real, d) for d in prot):
+            return deny(PROTECT_MSG)
+        if kind == "Delete" and in_scope(cwd, c):
+            r = judge_rm(["rm", p], cwd, c)
+            if r:
+                return r
+    return None
+
+
+def shell_text(cmd):
+    """Bash 도구의 명령 글. Codex 는 목록(["bash", "-lc", "…"])으로 줄 때가 있어 글 하나로 맞춘다."""
+    if isinstance(cmd, str):
+        return cmd
+    if isinstance(cmd, (list, tuple)) and all(isinstance(a, str) for a in cmd) and cmd:
+        if len(cmd) >= 3 and cmdname(cmd[0]) in ("bash", "sh", "zsh") and cmd[1] in ("-c", "-lc", "-ic"):
+            return cmd[2]
+        return " ".join(shlex.quote(a) for a in cmd)
+    return None
+
+
 def judge_mcp(tool, cwd, c):
     if not in_scope(cwd, c):
         return None
@@ -467,15 +506,25 @@ def judge(event):
     c = load()
     tool = event.get("tool_name") or ""
     inp = event.get("tool_input") or {}
+    if isinstance(inp, str):  # 글 하나로 오는 도구 입력(Codex apply_patch 의 패치 글 등)
+        inp = {"command": inp}
+    if not isinstance(inp, dict):
+        return None
     cwd = event.get("cwd") or ""
     if tool == "Bash":
-        cmd = inp.get("command")
-        return judge_bash(cmd, cwd, c, event.get("agent_id") or "") if isinstance(cmd, str) else None
+        cmd = shell_text(inp.get("command") if "command" in inp else inp.get("cmd"))
+        return judge_bash(cmd, cwd, c, event.get("agent_id") or "") if cmd is not None else None
     if tool == "PowerShell":
         cmd = inp.get("command")
         return judge_powershell(cmd, cwd, c, event.get("agent_id") or "") if isinstance(cmd, str) else None
     if tool.startswith("mcp__"):
         return judge_mcp(tool, cwd, c)
+    if tool == "write_stdin":  # Codex: 이미 띄운 프로그램(셸 등)에 넣는 글. 셸 명령처럼 본다(빈 글은 출력 기다리기라 통과)
+        chars = next((inp[k] for k in ("chars", "input", "text") if isinstance(inp.get(k), str)), "")
+        return judge_bash(chars.strip(), cwd, c, event.get("agent_id") or "") if chars.strip() else None
+    patch = inp.get("command")
+    if tool == "apply_patch" or (isinstance(patch, str) and "*** Begin Patch" in patch):
+        return judge_patch(patch if isinstance(patch, str) else inp.get("patch") or inp.get("input"), cwd, c)
     return judge_file(tool, inp, cwd, c)
 
 

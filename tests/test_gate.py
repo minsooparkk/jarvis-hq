@@ -263,3 +263,48 @@ def test_gate_reads_utf8_stdin_bytes(env):
     assert r.stdout, r.stderr.decode("utf-8", "replace")
     out = json.loads(r.stdout.decode("utf-8"))
     assert out["hookSpecificOutput"]["permissionDecision"] == "deny" and "한글파일" in out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+# ---------- 문지기: Codex 도구 ----------
+
+@pytest.fixture
+def cgate(gate):
+    """Codex 꼴 입력(도구 입력이 글 하나이거나 command 가 목록)을 그대로 넣는다."""
+    def judge(tool, inp, cwd=None):
+        r = gate.mod.judge({"tool_name": tool, "tool_input": inp, "cwd": str(cwd or gate.paths.home)})
+        return r[0] if r else "allow"
+    judge.paths = gate.paths
+    return judge
+
+
+def patch(*lines):
+    return "*** Begin Patch\n" + "\n".join(lines) + "\n*** End Patch"
+
+
+def test_codex_apply_patch(cgate):
+    h = cgate.paths.home
+    assert cgate("apply_patch", {"command": patch("*** Update File: hooks/gate.json", "@@", "+x")}) == "deny"
+    assert cgate("apply_patch", {"command": patch(f"*** Add File: {h}/.harness/ledger/x.db", "+x")}) == "deny"
+    assert cgate("apply_patch", {"command": patch("*** Update File: notes.md", "*** Move to: hooks/targets.yaml")}) == "deny"
+    assert cgate("apply_patch", {"command": patch("*** Add File: notes/a.txt", "+hello")}) == "allow"
+    assert cgate("apply_patch", {"command": patch("*** Delete File: notes/a.txt")}) == "deny"  # 영구 삭제는 rm 규칙
+    assert cgate("apply_patch", {"command": patch("*** Delete File: .harness/work/a.txt")}) == "allow"
+    assert cgate("apply_patch", patch("*** Update File: hooks/gate.json")) == "deny"  # 글 하나로 온 입력
+    assert cgate("Edit", {"command": patch("*** Update File: hooks/gate.json")}) == "deny"  # Edit 이름으로 와도
+
+
+def test_codex_shell_forms(cgate):
+    assert cgate("Bash", {"command": ["bash", "-lc", "jarvis secret set telegram"]}) == "deny"
+    assert cgate("Bash", {"command": ["git", "push", "--force"]}) == "deny"
+    assert cgate("Bash", {"command": "jarvis agent set codex"}) == "deny"
+    assert cgate("Bash", {"command": "jarvis agent status"}) == "allow"
+    assert cgate("write_stdin", {"session_id": 3, "chars": "rm -rf ~/Documents\n"}) == "deny"
+    assert cgate("write_stdin", {"session_id": 3, "chars": ""}) == "allow"  # 출력 기다리기
+    assert cgate("write_stdin", {"session_id": 3, "chars": "y\n"}) == "allow"
+
+
+def test_plugin_hooks_match_codex_tools():
+    hooks = json.loads((PLUGIN / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
+    import re
+    m = hooks["PreToolUse"][0]["matcher"]
+    assert all(re.search(m, t) for t in ("Bash", "apply_patch", "write_stdin", "mcp__korea-tax-law__search_law"))
