@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -188,3 +189,44 @@ def test_install_with_slack_messenger(box):
     assert names["대표 Slack 멤버 ID"] and names["Slack 토큰 slack-bot-token(키체인)"]
     r = box.cli("messenger", "status")
     assert r.returncode == 0 and "Slack" in r.stdout
+
+
+def fake_codex(tmp_path, body):
+    p = tmp_path / "bin" / "codex"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(f"#!{sys.executable}\nimport json, sys\n" + textwrap.dedent(body))
+    p.chmod(0o755)
+    return str(p)
+
+
+def test_install_with_codex(tmp_path):
+    from jhq.agents import codex as cx
+    home = tmp_path / "h"
+    home.mkdir()
+    path = fake_codex(tmp_path, """
+        if sys.argv[1:3] == ["plugin", "list"]:
+            print(json.dumps({"installed": []}))
+    """)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("JARVIS_")}
+    env.update(HOME=str(home), JARVIS_HQ_DIR=str(home / ".jarvis-hq"), JARVIS_HQ_FAKE_KEYCHAIN=str(tmp_path / "kc.json"),
+               JARVIS_HQ_NO_LAUNCHCTL="1", PATH=str(Path(path).parent) + os.pathsep + env.get("PATH", ""))
+
+    def run(*args, check=True):
+        r = subprocess.run(["/usr/bin/python3", str(INSTALL), *args, "--json"], capture_output=True, text=True, env=env)
+        assert r.returncode == 0 or not check, r.stdout + r.stderr
+        return json.loads(r.stdout)
+
+    rep = run(*BASE, "--agent", "codex", "--dry-run")
+    j = home / "jarvis"
+    cfg = json.loads((home / ".jarvis-hq" / "config.json").read_text())
+    assert cfg["agent"] == "codex" and cfg["codex"]["path"] == path and rep["agent"] == "codex"
+    assert (j / "AGENTS.md").read_text(encoding="utf-8").startswith(cx.MARKER)
+    assert os.readlink(j / ".agents" / "skills") == "../skills" and os.readlink(j / ".claude" / "skills") == "../skills"
+    assert (home / ".jarvis-hq" / "engine" / "mcp.json").exists()
+    assert rep["codex_plugin"].startswith("할 일: codex plugin marketplace add") and "jarvis agent status" in rep["next"][-1]
+    rep = run(*BASE, "--dry-run")  # --agent 없이 다시: 설정 그대로
+    assert json.loads((home / ".jarvis-hq" / "config.json").read_text())["agent"] == "codex"
+    doc = run("--doctor", "--dry-run", check=False)
+    names = {c["name"]: c["ok"] for c in doc["checks"]}
+    assert names["에이전트(Codex)"] and names["홈 AGENTS.md(CLAUDE.md 에서 만듦)"]
+    assert names["Codex 플러그인 jarvis(스킬·MCP·훅)"] is False

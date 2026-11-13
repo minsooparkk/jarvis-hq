@@ -3,7 +3,7 @@
 
   python3 install.py [--home ~/jarvis] [--owner-name 이름] [--owner-title 대표] [--assistant-name Jarvis] [--tone "…"]
                      [--timezone Asia/Seoul] [--messenger telegram|slack|discord] [--owner-id id] [--telegram-owner-id 숫자]
-                     [--dry-run] [--no-venv --python 경로] [--json]
+                     [--agent claude|codex] [--dry-run] [--no-venv --python 경로] [--json]
   python3 install.py --doctor [--json]
   python3 install.py --uninstall [--remove-home] [--forget-secrets] [--dry-run] [--json]
 
@@ -12,6 +12,8 @@
 (파일은 HOME 아래에 쓴다. 시험은 임시 HOME 에서).
 엔진 자리: ~/.jarvis-hq (JARVIS_HQ_DIR 로 바꿈). 플러그인 캐시 자리는 판마다 바뀌어 데몬을 거기 두지 않는다.
 OS 마다 다른 일(서비스·금고·바로가기·폴더 연결·휴지통)은 엔진의 jhq.platform 이 맡는다(이 스크립트는 OS 를 직접 보지 않음).
+에이전트(Claude Code · Codex)마다 다른 일(실행 파일 찾기, 홈의 AGENTS.md·.agents/skills, Codex 플러그인 넣기, 점검)은 jhq.agents 가 맡는다.
+--agent 를 주지 않으면 설정 그대로(처음 설치는 claude). Codex 로 설치할 때는 --agent codex.
 """
 
 import argparse
@@ -28,9 +30,12 @@ ROOT = Path(__file__).resolve().parent.parent  # 플러그인 뿌리
 TEMPLATE = ROOT / "template"
 ENGINE_SRC = ROOT / "engine"
 HOOKS_SRC = ROOT / "hooks"
+MARKET_ROOT = ROOT.parent.parent  # 저장소에서 돌 때 마켓플레이스 뿌리(.claude-plugin/marketplace.json 이 있는 곳)
+MARKET_REMOTE = "minsooparkk/jarvis-hq"
 sys.path.insert(0, str(ENGINE_SRC))
 from jhq import messengers as jm  # noqa: E402  메신저 목록(표준 라이브러리만, 연결 코드는 불러오지 않음)
 from jhq import platform as osplat  # noqa: E402  표준 라이브러리만 쓰는 OS 층
+from jhq import agents as jagents  # noqa: E402  표준 라이브러리만 쓰는 에이전트 층
 
 SERVICES = ("jarvisd", "executor", "watchdog")
 MODULE = {"jarvisd": "jhq.daemon", "executor": "jhq.cli", "watchdog": "jhq.watchdog"}
@@ -103,6 +108,8 @@ def install_engine(report):
     (stage / "hooks").mkdir(exist_ok=True)
     for f in ("gate.py", "session_start.py"):
         shutil.copy2(HOOKS_SRC / f, stage / "hooks" / f)
+    if (ROOT / ".mcp.json").exists():  # Codex 세션에 줄 MCP 서버(jhq.agents.codex)
+        shutil.copy2(ROOT / ".mcp.json", stage / "mcp.json")
     if dest.exists() and tree_digest(dest) == tree_digest(stage):
         shutil.rmtree(stage)
         report["engine"] = "같음(그대로 둠)"
@@ -175,6 +182,20 @@ def update_config(args, report):
         cfg["messenger"] = args.messenger
     elif created:
         cfg["messenger"] = "telegram"
+    if args.agent:
+        cfg["agent"] = args.agent
+    elif created or not cfg.get("agent"):
+        cfg["agent"] = "claude"  # 예전 설치(agent 없음)는 Claude Code 그대로
+    if cfg["agent"] == "codex":
+        cx = cfg["codex"] if isinstance(cfg.get("codex"), dict) else {}
+        cfg["codex"] = cx
+        if not (cx.get("path") and Path(str(cx["path"])).exists()):
+            found = jagents.get("codex").find(p)
+            if found:
+                cx["path"] = found  # Codex 자리가 바뀌었으면 따라간다
+        if not cx.get("path"):
+            report.setdefault("warnings", []).append(
+                "codex 명령을 찾지 못했습니다. Codex CLI 를 깐 뒤(npm install -g @openai/codex) 설치를 다시 돌리세요.")
     for name in jm.NAMES:
         cfg.setdefault(name, {})
     if args.telegram_owner_id:
@@ -242,6 +263,9 @@ def lay_home(cfg, args, report):
     made = plat().link_dir(home / ".claude" / "skills", "../skills")  # 맥 심볼릭 링크, 윈도 디렉터리 정션
     if made:
         created.append(made)
+    if cfg.get("agent") == "codex":  # AGENTS.md(CLAUDE.md 에서 만듦)와 .agents/skills(→ ../skills)
+        from jhq import config as jconfig
+        created += jagents.get("codex").prepare_home(jconfig.Paths(cfg), cfg, plat=plat())
     report["home"] = str(home)
     report["created"], report["kept"] = created, kept
     return home
@@ -270,6 +294,34 @@ def run_cli(cli, *args, check=False):
     if check and r.returncode != 0:
         raise RuntimeError(f"jarvis {' '.join(args)}: {(r.stderr or r.stdout).strip()[:300]}")
     return r
+
+
+def codex_plugin(cfg, args, report):
+    """Codex 에 플러그인 jarvis(스킬·MCP·훅)가 있는지 보고, 없으면 넣는다(같은 저장소의 .claude-plugin/marketplace.json 을
+    Codex 가 읽는다). dry-run·서비스 끔(시험)에서는 할 일만 알린다. 사용자 Codex 설정(~/.codex/config.toml)에 마켓플레이스·
+    플러그인 두 줄이 생긴다(그 밖의 Codex 설정은 건드리지 않음)."""
+    ag = jagents.get("codex")
+    p = plat()
+    if not ag.configured(cfg):
+        report["codex_plugin"] = "확인 못 함(codex 명령 없음)"
+        return
+    state = ag.plugin_state(cfg, p)
+    if state == "installed":
+        report["codex_plugin"] = "있음"
+        return
+    source = MARKET_ROOT if (MARKET_ROOT / ".claude-plugin" / "marketplace.json").exists() else MARKET_REMOTE
+    plan = ag.plugin_plan(source)
+    words = " && ".join("codex " + " ".join(str(x) for x in a) for a in plan)
+    if args.dry_run or NO_SERVICES or state == "unknown":
+        report["codex_plugin"] = f"할 일: {words}"
+        return
+    for a in plan:
+        r = ag.cmd(cfg, p, *a, timeout=180)
+        if r.returncode != 0 and "already" not in (r.stderr or r.stdout or "").lower():
+            report.setdefault("warnings", []).append(f"codex {' '.join(str(x) for x in a)}: {(r.stderr or r.stdout or '').strip()[:200]}")
+            report["codex_plugin"] = f"넣지 못함. 터미널에서: {words}"
+            return
+    report["codex_plugin"] = "넣었음(Codex 를 새로 열면 스킬 jarvis:… 가 보인다)"
 
 
 def service_spec(cfg, svc, py, home):
@@ -328,6 +380,9 @@ def install(args):
     install_cli(py, report)
     cli = py_cli(py)
     home = lay_home(cfg, args, report)
+    report["agent"] = cfg.get("agent") or "claude"
+    if report["agent"] == "codex":
+        codex_plugin(cfg, args, report)
     r = run_cli(cli, "perms", "build")
     report["perms"] = (r.stdout or r.stderr).strip()
     if args.dry_run:
@@ -359,6 +414,8 @@ def install(args):
         nxt.append(f"봇에게 {sp['display']} 로 말을 건 뒤: jarvis messenger pair → 이름 확인 → jarvis messenger set-owner <id> → 설치 다시")
     if has_token and has_owner:
         nxt.append(f"{sp['display']} 에서 봇에게 '안녕' 을 보내고: jarvis status --wait-reply 180")
+    if report["agent"] == "codex":
+        nxt.append("Codex 로 돕니다. 문지기 보장(Claude 대비)과 점검: jarvis agent status")
     report["next"] = nxt
     return report, 0
 
@@ -388,9 +445,14 @@ def doctor(args):
     add("파이썬 환경(venv·PyYAML)", py.exists() and subprocess.run([str(py), "-c", probe], capture_output=True).returncode == 0,
         "/jarvis:setup 을 다시 돌리세요(인터넷 필요)")
     add("jarvis 명령", p.cli_path(e).exists(), "/jarvis:setup 을 다시 돌리세요")
-    claude = cfg.get("claude") or ""
-    add(f"claude 명령({claude})", claude and Path(claude).exists(), "Claude Code 를 설치했거나 자리가 바뀌었으면 /jarvis:setup 을 다시 돌리세요"
-        "(config.json 의 claude 를 지금 자리로)")
+    try:
+        ag = jagents.get(cfg)
+        from jhq import config as jconfig
+        add(f"에이전트({ag.display})", True)
+        for name, ok, hint in ag.checks(cfg, jconfig.Paths(jconfig._merge(jconfig.DEFAULTS, cfg)), p):
+            add(name, ok, hint)
+    except jagents.UnknownAgent as x:
+        add("에이전트 이름", False, f"{x}. config.json 의 agent 는 claude · codex 중 하나")
     try:
         add(f"bash({p.bash()})", True)
     except osplat.Unsupported as x:
@@ -468,6 +530,8 @@ def uninstall(args):
     else:
         report["home_kept"] = str(home)
     trash(e, report, args.dry_run)
+    if cfg.get("agent") == "codex":
+        report["codex_plugin"] = "Codex 플러그인은 그대로 둡니다. 빼려면: codex plugin remove jarvis@jarvis-hq"
     return report, 0
 
 
@@ -482,6 +546,7 @@ def main(argv=None):
     ap.add_argument("--telegram-owner-id", default="")
     ap.add_argument("--messenger", default="", choices=["", *jm.NAMES], help="telegram(기본) · slack · discord")
     ap.add_argument("--owner-id", default="", help="고른 메신저의 대표 id")
+    ap.add_argument("--agent", default="", choices=["", *jagents.NAMES], help="claude(기본) · codex. 없으면 설정 그대로")
     ap.add_argument("--label-prefix", default="com.jarvis-hq")
     ap.add_argument("--python", default="")
     ap.add_argument("--no-venv", action="store_true")
